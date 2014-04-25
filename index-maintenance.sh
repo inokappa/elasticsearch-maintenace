@@ -1,7 +1,8 @@
-#!/bin/env bash
+#!/bin/bash
 #
 ES_HOST=""
 DELETE_DATE=`date --date 'xx day ago' +%Y.%m.%d`
+MAINTE_DATE=`date +%Y.%m.%d`
 CURL_PATH="/path/to/curl"
 MAIL_PATH="/path/to/mail"
 # Require jq
@@ -10,10 +11,10 @@ RSYNC_PATH="/path/to/rsync"
 SOURCE_PATH=""
 BACKUP_PATH=""
 BACKUP_USER=""
-ALERT_TO=""
+ALERT_TO="your_mail_addresss"
 #
 function send_mail(){
-  ${MAIL_PATH} -s "Elasticsearch Maintenance Failure." ${ALERT_TO}
+ ${MAIL_PATH} -s "Elasticsearch Maintenance Failure(${MAINTE_DATE})" ${ALERT_TO}
 }
 #
 function check_result(){
@@ -33,24 +34,32 @@ function get_delete_index(){
   grep ${DELETE_DATE}`
 }
 #
-function maintenance_index(){
-  get_delete_index
+function delete_index(){
   for index in ${DELETE_INDICES[@]};
   do
-    echo "Delete Index ${index} ..."
+    echo "Deleting index ${index} ..."
     ${CURL_PATH} -s -XDELETE "http://${ES_HOST}:9200/${index}"
-    check_result "Index Delete"
+    echo "done ..."
   done
 }
 #
+function maintenance_index(){
+  get_delete_index
+  if [ -n "${DELETE_INDICES}" ];then
+    delete_index
+    check_result "index delete"
+  else
+    echo ""
+    check_result "delete index does not exist... maintenance"
+  fi
+}
+#
 function sync(){
-  ${RSYNC_PATH} \
-  # for test
-  #--dry-run \
+  /usr/bin/rsync \
   -avz \
   -e ssh \
   ${BACKUP_USER}@${ES_HOST}:${SOURCE_PATH} ${BACKUP_PATH}
-  check_result "Index Backup"
+  check_result "index backup"
 }
 
 # Main
